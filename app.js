@@ -174,8 +174,10 @@
     }).join('');
     let label = '';
     if (sel && E[sel]) {
-      const e = E[sel], x = (MX(e.lon) + 13).toFixed(1), y = MY(e.lat);
-      label = `<text class="jo-label" x="${x}" y="${(y + 1).toFixed(1)}" direction="ltr">${esc(city(e.id))}</text><text class="jo-label-sub" x="${x}" y="${(y + 16).toFixed(1)}" direction="ltr">${esc(t('home.map.listed', { n: num(e.listed) }))}</text>`;
+      const rtl = t('meta.dir') === 'rtl', dir = rtl ? 'rtl' : 'ltr';
+      const e = E[sel], left = rtl && MX(e.lon) > 110, y = MY(e.lat);
+      const x = (MX(e.lon) + (left ? -13 : 13)).toFixed(1), anchor = rtl && !left ? 'end' : 'start';
+      label = `<text class="jo-label" x="${x}" y="${(y + 1).toFixed(1)}" direction="${dir}" text-anchor="${anchor}">${esc(city(e.id))}</text><text class="jo-label-sub" x="${x}" y="${(y + 16).toFixed(1)}" direction="${dir}" text-anchor="${anchor}">${esc(e.cos ? t('map.cos', { n: num(e.cos) }) : t('map.new'))}</text>`;
     }
     return `<svg viewBox="0 0 390 445" role="img" aria-label="${esc(t('inv.map.title'))}"><polygon class="jo-land" points="${pointsOf(D.outline)}"/><polygon class="jo-sea" points="${pointsOf(DEAD_SEA)}"/>${dots}${label}</svg>`;
   }
@@ -281,7 +283,15 @@
       <p>${t('foot.sample')}</p>
       <p>${t('foot.photos')}</p>
       <details class="credits" id="credits"><summary>${t('foot.credits')}</summary><ul id="credits-list"></ul></details>
-      <p>${t('ui.sources')}: <a href="https://jordantimes.com/news/local/industrial-exports-reach-record-jd89b-in-2025-jci" target="_blank" rel="noopener">Jordan Chamber of Industry (2025)</a> · <a href="https://jordantimes.com/news/business/industrial-sector-sees-strong-growth-in-2025-jci" target="_blank" rel="noopener">JCI, workers (2025)</a> · <a href="https://www.jordannews.jo/Section-109/News/JIEC-s-investments-at-JD3-235bln-seeks-to-expand-volume-Director-37989" target="_blank" rel="noopener">JIEC (2024)</a></p>
+      <p>${t('ui.sources')}: ${[
+        ['Jordan Chamber of Industry, 2025 results (Mar 2026)', 'https://jci.org.jo/?p=16396'],
+        ['JCI industrial exports report, Jan–Nov 2025', 'https://jci.org.jo/'],
+        ['Department of Statistics, external trade (Mar 2026)', 'https://dosweb.dos.gov.jo/DataBank/News/External_trade/2026/EXT_Feb.pdf'],
+        ['UN Comtrade, Jordan 2024', 'https://comtradeplus.un.org/'],
+        ['JIEC Annual Report 2024', 'https://jiec.fra1.digitaloceanspaces.com/1696/jiec-new_2024_AR.pdf'],
+        ['JIEC figures, Al Rai (28 Jul 2026)', 'https://alrai.com/article/10968903'],
+        ['Jordan Times (18 Jul 2026)', 'https://jordantimes.com/news/local/industrial-exports-reach-record-jd89b-in-2025-jci']
+      ].map(([l, u]) => `<a href="${u}" target="_blank" rel="noopener">${l}</a>`).join(' · ')}</p>
     </div></footer>`;
   }
 
@@ -549,12 +559,12 @@
   }
 
   function estateList() {
-    return D.estates.map(e => `<button class="estate-btn" data-estate="${e.id}" aria-pressed="${state.estate === e.id}"><i></i><span>${estName(e.id)}</span><small>${num(e.listed)}</small></button>`).join('');
+    return D.estates.map(e => `<button class="estate-btn" data-estate="${e.id}" aria-pressed="${state.estate === e.id}"><i></i><span>${estName(e.id)}</span><small>${e.cos ? t('map.cos', { n: num(e.cos) }) : t('map.new')}</small></button>`).join('');
   }
 
   function viewInvest() {
     const n = D.national;
-    const agreements = ['US FTA', 'EU', 'UK', 'Canada', 'EFTA', 'GAFTA', 'Agadir'];
+    const agreements = ['US FTA', 'EU', 'UK', 'Canada', 'EFTA', 'GAFTA', 'Agadir', 'Singapore', 'UAE CEPA'];
     const why = [['globe', 'access', ''], ['estate', 'estates', 'gold'], ['users', 'skills', 'teal'], ['pin', 'location', 'ink']];
     return `<div class="wrap">
       ${pageHead(t('inv.eyebrow'), t('inv.title'), t('inv.sub'))}
@@ -570,74 +580,101 @@
         ${sectionHead(t('inv.map.title'), t('inv.map.sub'))}
         <div class="mapbox glass" data-reveal>
           <div id="estate-map">${mapSVG({ sel: state.estate, interactive: true })}</div>
-          <div class="grid" style="gap:12px"><div class="estate-list">${estateList()}</div><p class="source">${t('inv.estateCos', { a: num(n.estateCompanies), b: money(n.estateInvestment, true), c: compact(n.estateJobs) })}</p></div>
+          <div class="grid" style="gap:12px"><div class="estate-list">${estateList()}</div><p class="source">${t('inv.estateCos', { a: num(n.estateCompanies), b: money(n.estateInvestment, true), c: num(n.estateJobs) })}</p></div>
         </div>
       </section>
     </div>`;
   }
 
   // Charts
-  function barList(rows, max) {
-    return `<div class="bars">${rows.map(([label, v, muted], i) => `<div class="bar-row"><span class="bar-label" title="${esc(label)}">${label}</span><span class="bar-track"><i class="bar${muted ? ' muted-bar' : ''}" style="--i:${i};width:calc((100% - 64px) * ${(v / max).toFixed(4)})"></i><span class="bar-val">${num(v)}</span></span></div>`).join('')}</div>`;
+  const M = 1e6;
+  const fromUsd = usdMillions => usdMillions * D.real.usdToJod * M;
+  function barList(rows, max, fmt = num) {
+    return `<div class="bars">${rows.map(([label, v, muted], i) => `<div class="bar-row"><span class="bar-label" title="${esc(label)}">${label}</span><span class="bar-track"><i class="bar${muted ? ' muted-bar' : ''}" style="--i:${i};width:calc((100% - 84px) * ${(v / max).toFixed(4)})"></i><span class="bar-val">${fmt(v)}</span></span></div>`).join('')}</div>`;
   }
-  const TG = { W: 960, H: 250, pl: 46, pr: 64, pt: 18, pb: 30, max: 4000 };
-  const tx = (i, n) => TG.pl + (i * (TG.W - TG.pl - TG.pr)) / (n - 1);
-  const ty = v => TG.pt + (TG.H - TG.pt - TG.pb) * (1 - v / TG.max);
-  const monthDate = i => new Date(2025, 10 + i, 1);
-  function trendSVG() {
-    const v = D.insights.trend, n = v.length;
-    let mf;
-    try { mf = new Intl.DateTimeFormat(loc(), { month: 'short' }); } catch (e) { mf = new Intl.DateTimeFormat('en', { month: 'short' }); }
-    const grid = [0, 1000, 2000, 3000, 4000].map(g => `<line class="grid-line" x1="${TG.pl}" x2="${TG.W - TG.pr}" y1="${ty(g)}" y2="${ty(g)}"/><text class="axis-text" x="${TG.pl - 8}" y="${ty(g) + 4}" text-anchor="end">${compact(g)}</text>`).join('');
-    const pts = v.map((val, i) => `${tx(i, n).toFixed(1)},${ty(val).toFixed(1)}`);
-    const months = v.map((_, i) => (i % 2 === 1 ? `<text class="axis-text" x="${tx(i, n)}" y="${TG.H - 8}" text-anchor="middle">${esc(mf.format(monthDate(i)))}</text>` : '')).join('');
-    const lx = tx(n - 1, n), ly = ty(v[n - 1]);
-    return `<svg id="trend-svg" viewBox="0 0 ${TG.W} ${TG.H}" role="img" aria-label="${esc(t('ins.trend'))}" style="direction:ltr">
+  const G = { W: 960, H: 260, pl: 70, pr: 92, pt: 18, pb: 34 };
+  const CHARTS = {};
+  const gx = (i, n) => G.pl + (i * (G.W - G.pl - G.pr)) / (n - 1);
+  const gy = (v, max) => G.pt + (G.H - G.pt - G.pb) * (1 - v / max);
+  function lineChart(id, points, { max, ticks, fmt, label }) {
+    const n = points.length;
+    CHARTS[id] = { points, fmt, max };
+    const grid = ticks.map(g => `<line class="grid-line" x1="${G.pl}" x2="${G.W - G.pr}" y1="${gy(g, max)}" y2="${gy(g, max)}"/><text class="axis-text" x="${G.pl - 10}" y="${gy(g, max) + 4}" text-anchor="end">${esc(fmt(g))}</text>`).join('');
+    const pts = points.map(([, v], i) => `${gx(i, n).toFixed(1)},${gy(v, max).toFixed(1)}`);
+    const xs = points.map(([l], i) => `<text class="axis-text" x="${gx(i, n)}" y="${G.H - 8}" text-anchor="middle">${esc(l)}</text>`).join('');
+    const lx = gx(n - 1, n), ly = gy(points[n - 1][1], max);
+    return `<svg id="${id}" class="line-chart" viewBox="0 0 ${G.W} ${G.H}" role="img" aria-label="${esc(label)}" style="direction:ltr">
       ${grid}
-      <path class="area" d="M${pts.join(' L')} L${lx},${ty(0)} L${TG.pl},${ty(0)} Z"/>
+      <path class="area" d="M${pts.join(' L')} L${lx},${gy(0, max)} L${G.pl},${gy(0, max)} Z"/>
       <path class="line" pathLength="1" d="M${pts.join(' L')}"/>
-      <line class="cross" id="trend-cross" x1="0" x2="0" y1="${TG.pt}" y2="${ty(0)}" visibility="hidden"/>
+      <line class="cross" x1="0" x2="0" y1="${G.pt}" y2="${gy(0, max)}" visibility="hidden"/>
+      ${points.map(([, v], i) => `<circle class="dot" cx="${gx(i, n)}" cy="${gy(v, max)}" r="3.5"/>`).join('')}
       <circle class="end" cx="${lx}" cy="${ly}" r="6"/>
-      <text class="end-text" x="${lx + 12}" y="${ly + 5}">${num(v[n - 1])}</text>
-      ${months}
-      <rect id="trend-hit" x="${TG.pl}" y="0" width="${TG.W - TG.pl - TG.pr}" height="${TG.H}" fill="transparent"/>
+      <text class="end-text" x="${lx + 12}" y="${ly + 5}">${esc(fmt(points[n - 1][1]))}</text>
+      ${xs}
+      <rect class="hit" x="${G.pl}" y="0" width="${G.W - G.pl - G.pr}" height="${G.H}" fill="transparent"/>
     </svg>`;
   }
+  const src = s => `<p class="source">${t('ins.src', { s })}</p>`;
 
   function viewInsights() {
-    const ins = D.insights;
-    const inEstates = D.estates.reduce((s, e) => s + e.listed, 0);
+    const R = D.real, N = D.national;
     const kpis = [
-      [counter(ins.factories, 'num'), 'ins.kpi.factories'],
-      [counter(ins.products, 'num'), 'ins.kpi.products'],
-      [counter(ins.quotes, 'num'), 'ins.kpi.quotes'],
-      [counter(ins.countries, 'num'), 'ins.kpi.countries'],
-      [t('ins.coverageVal', { a: counter(inEstates, 'num'), b: num(D.national.estateCompanies) }), 'ins.coverage']
+      [counter(N.exports, 'moneyc'), 'ins.k.exports', t('ins.k.growth', { n: nf(R.growth2025, { maximumFractionDigits: 1 }) })],
+      [counter(N.exportsShare, 'pct'), 'ins.k.share', ''],
+      [counter(R.gdpShare, 'pct'), 'ins.k.gdp', ''],
+      [counter(N.workers, 'num'), 'ins.k.workers', ''],
+      [counter(N.estateCompanies, 'num'), 'ins.k.jiec', 'JIEC, 07/2026']
     ];
-    const sectors = D.sectors.slice().sort((a, b) => b.listings - a.listings).map(s => [secName(s.id), s.listings]);
-    const countries = ins.byCountry.map(([c, v]) => [country(c), v, c === 'other']);
-    const estates = D.estates.slice().sort((a, b) => b.listed - a.listed);
-    const total = ins.factories;
-    const estRow = (label, sub, v) => `<tr><td><b style="font-weight:600">${label}</b>${sub ? `<br><span class="small muted">${sub}</span>` : ''}</td><td class="n">${num(v)}</td><td class="n"><span class="share"><i style="width:${Math.max(3, (v / 614) * 60).toFixed(0)}px"></i>${nf(v / total, { style: 'percent', maximumFractionDigits: 1 })}</span></td></tr>`;
-    const status = sup => (sup === 0 ? `<span class="pill pill-gap">${icon('alert')}${t('ins.status.gap')}</span>` : sup <= 2 ? `<span class="pill pill-thin">${icon('minus')}${t('ins.status.thin')}</span>` : `<span class="pill pill-ok">${icon('check')}${t('ins.status.ok')}</span>`);
-    const growth = ins.trend[ins.trend.length - 1] / ins.trend[0];
+    const yearly = R.exportsYearly.map(([y, v]) => [nf(y, { useGrouping: false }), v]);
+    const moneyM = v => money(v * M, true);
+    const dest = R.exportsByDest.usd.map(([c, v]) => [country(c), v * R.usdToJod, c === 'other']);
+    const sectors = R.exportsBySector.map(([k, v]) => [t('jci.' + k), v]);
+    const share = R.localShare.slice().sort((a, b) => a[1] - b[1]).map(([k, v]) => [t('jci.' + k), v]);
+    const estates = D.estates.filter(e => e.cos).sort((a, b) => b.cos - a.cos);
+    const tot = D.estatesTotal;
+    const estRow = (e, bold) => `<tr${bold ? ' class="total"' : ''}><td>${bold ? `<b>${t('ins.total')}</b>` : `<b style="font-weight:600">${city(e.id)}</b><br><span class="small muted">${estName(e.id)}</span>`}</td><td class="n">${num(e.cos)}</td><td class="n">${money(e.inv * M, true)}</td><td class="n">${num(e.jobs)}</td></tr>`;
     return `<div class="wrap">
       ${pageHead(t('ins.eyebrow'), t('ins.title'), t('ins.sub'))}
-      <div class="kpis" style="margin-top:28px">${kpis.map(([v, k], i) => `<div class="kpi glass tilt" ${rv(i)}><span class="kpi-label">${t(k)}</span><span class="kpi-val${k === 'ins.coverage' ? ' kpi-sm' : ''}">${v}</span></div>`).join('')}</div>
+      <div class="kpis" style="margin-top:28px">${kpis.map(([v, k, sub], i) => `<div class="kpi glass tilt" ${rv(i)}><span class="kpi-label">${t(k)}</span><span class="kpi-val">${v}</span>${sub ? `<span class="small muted">${sub}</span>` : ''}</div>`).join('')}</div>
+      <p class="source">${t('ins.src', { s: 'JCI (Mar–Jul 2026); JIEC (Al Rai, 28 Jul 2026)' })}</p>
+
+      <section class="panel glass trend" style="margin-top:20px" data-reveal>
+        <div class="panel-head"><h3>${t('ins.ch.yearly')}</h3><span class="pill pill-green">${icon('trend')}${t('ins.trendDelta', { n: nf(R.exportsYearly[6][1] / R.exportsYearly[0][1], { maximumFractionDigits: 1 }) })}</span></div>
+        ${lineChart('chart-yearly', yearly, { max: 10000, ticks: [0, 2500, 5000, 7500, 10000], fmt: moneyM, label: t('ins.ch.yearly') })}
+        <p class="source">${t('ins.ch.yearlyNote')} ${t('ins.src', { s: 'JCI' })}</p>
+      </section>
+
       <div class="ins-grid" style="margin-top:20px">
-        <section class="panel glass" data-reveal><div class="panel-head"><h3>${t('ins.bySector')}</h3><span class="chip">${t('ui.sample')}</span></div>${barList(sectors, sectors[0][1])}</section>
-        <section class="panel glass" ${rv(1)}><div class="panel-head"><h3>${t('ins.byCountry')}</h3><span class="chip">${t('ui.sample')}</span></div>${barList(countries, 720)}</section>
+        <section class="panel glass" data-reveal><h3>${t('ins.ch.dest')}</h3>${barList(dest, dest[0][1], moneyM)}${src('UN Comtrade (domestic exports, released Feb 2026)')}<p class="source" style="margin-top:0">${t('ins.usd')}</p></section>
+        <section class="panel glass" ${rv(1)}><h3>${t('ins.ch.sector')}</h3>${barList(sectors, sectors[0][1], moneyM)}${src('JCI, industrial exports report (Feb 2026)')}</section>
       </div>
-      <section class="panel glass trend" style="margin-top:20px" data-reveal><div class="panel-head"><h3>${t('ins.trend')}</h3><span class="pill pill-green">${icon('trend')}${t('ins.trendDelta', { n: nf(growth, { maximumFractionDigits: 1 }) })}</span></div>${trendSVG()}</section>
+
       <div class="ins-grid" style="margin-top:20px">
-        <section class="panel glass" data-reveal><h3>${t('ins.byEstate')}</h3><div class="table-wrap"><table class="table"><thead><tr><th>${t('ins.estate')}</th><th class="n">${t('ins.factories')}</th><th class="n">${t('ins.share')}</th></tr></thead><tbody>
-          ${estates.map(e => estRow(city(e.id), estName(e.id), e.listed)).join('')}${estRow(t('ins.outside'), '', D.outsideEstates)}
-        </tbody></table></div></section>
-        <section class="panel glass" ${rv(1)}><div class="grid" style="gap:4px"><h3>${t('ins.demand.title')}</h3><p class="small muted">${t('ins.demand.sub')}</p></div><div class="table-wrap"><table class="table"><thead><tr><th>${t('ins.demand.term')}</th><th class="n">${t('ins.demand.searches')}</th><th class="n">${t('ins.demand.suppliers')}</th><th>${t('ins.demand.status')}</th></tr></thead><tbody>
-          ${ins.demand.map(([k, s, sup]) => `<tr><td>${t('q.' + k)}</td><td class="n">${num(s)}</td><td class="n">${num(sup)}</td><td>${status(sup)}</td></tr>`).join('')}
-        </tbody></table></div><button class="link-more" data-go="invest" style="justify-self:start">${t('search.empty.invest')} ${icon('fwd', 'flip-rtl')}</button></section>
+        <section class="panel glass" data-reveal><h3>${t('ins.ch.estates')}</h3><div class="table-wrap"><table class="table"><thead><tr><th>${t('ins.estate')}</th><th class="n">${t('ins.col.cos')}</th><th class="n">${t('ins.col.inv')}</th><th class="n">${t('ins.col.jobs')}</th></tr></thead><tbody>
+          ${estates.map(e => estRow(e)).join('')}${estRow(tot, true)}
+        </tbody></table></div><p class="source">${t('ins.ch.estatesNote')}</p>${src('JIEC Annual Report 2024')}</section>
+        <div class="grid" style="gap:20px;align-content:start">
+          <section class="panel glass" ${rv(1)}><h3>${t('ins.ch.newInv')}</h3>
+            <div class="opp-nums" style="border:0;padding:0"><div><span class="small muted">${t('ins.col.contracts')}</span><b>${counter(N.newContracts2025, 'num')}</b></div><div><span class="small muted">${t('ins.col.inv')}</span><b>${counter(N.newInvestment2025, 'moneyc')}</b></div></div>
+            <p class="small muted">${t('ins.newInv.jobs', { n: num(N.newJobs2025) })}</p>${src('JIEC, “Latest achievements 2025”')}</section>
+          <section class="panel glass" ${rv(2)}><h3>${t('ins.ch.share')}</h3><p class="small muted">${t('ins.ch.shareSub')}</p>${barList(share, 100, v => nf(v / 100, { style: 'percent', maximumFractionDigits: 1 }))}${src('JCI, self-sufficiency report (Apr 2026)')}</section>
+        </div>
       </div>
-      <section class="section">${sectionHead(t('ins.national'), '', '', true)}${nationalBento()}</section>
+
+      <div class="ins-grid" style="margin-top:20px">
+        <section class="panel glass" data-reveal><div class="grid" style="gap:4px"><h3>${t('ins.ch.imports')}</h3><p class="small muted">${t('ins.ch.importsSub')}</p></div><div class="table-wrap"><table class="table"><thead><tr><th>${t('ins.col.group')}</th><th class="n">HS</th><th class="n">${t('ins.col.value')}</th></tr></thead><tbody>
+          ${R.imports.map(([k, hs, v]) => `<tr><td>${t('imp.' + k)}</td><td class="n mono">${hs}</td><td class="n">${money(fromUsd(v), true)}</td></tr>`).join('')}
+        </tbody></table></div>${src('UN Comtrade, 2024')}<p class="source" style="margin-top:0">${t('ins.usd')}</p><button class="link-more" data-go="invest" style="justify-self:start">${t('search.empty.invest')} ${icon('fwd', 'flip-rtl')}</button></section>
+        <section class="panel glass" ${rv(1)}><div class="grid" style="gap:4px"><h3>${t('ins.ch.sectors')}</h3><p class="small muted">${t('ins.ch.sectorsNote')}</p></div><div class="table-wrap"><table class="table"><thead><tr><th>${t('ins.col.sector')}</th><th class="n">${t('ins.col.estab')}</th><th class="n">${t('ins.col.jobs')}</th></tr></thead><tbody>
+          ${R.sectorBase.map(([k, e, w]) => `<tr><td>${t('jci.' + k)}</td><td class="n">${num(e)}</td><td class="n">${num(w)}</td></tr>`).join('')}
+        </tbody></table></div>${src('JCI sector pages (Aug 2026)')}</section>
+      </div>
+
+      <section class="section">
+        ${sectionHead(t('ins.proj.title'), t('ins.proj.sub'), `<span class="pill pill-sand">${t('ins.proj.badge')}</span>`)}
+        <div class="grid g4">${[['factories', 'num'], ['products', 'num'], ['quotes', 'num'], ['countries', 'num']].map(([k, kind], i) => `<div class="kpi glass tilt" ${rv(i)}><span class="kpi-label">${t('ins.kpi.' + k)}</span><span class="kpi-val">${counter(D.insights[k], kind)}</span><span class="small muted">${t('ins.proj.badge')}</span></div>`).join('')}</div>
+      </section>
     </div>`;
   }
 
@@ -854,7 +891,7 @@
     $('#app').innerHTML = header() + `<main id="view">${view()}</main>` + footer() + tourPanel();
     document.body.classList.toggle('touring', state.tour >= 0);
     if (state.route === 'search') fillResults();
-    if (state.route === 'insights') bindTrend();
+    if (state.route === 'insights') bindCharts();
     setupMotion();
   }
   function go(route) {
@@ -908,26 +945,23 @@
   }
 
   let tip;
-  function bindTrend() {
-    const svg = $('#trend-svg'), hit = $('#trend-hit'), cross = $('#trend-cross');
-    if (!svg || !hit) return;
-    if (!tip) { tip = document.createElement('div'); tip.className = 'tip'; tip.hidden = true; document.body.appendChild(tip); }
-    const v = D.insights.trend, n = v.length;
-    let lf;
-    try { lf = new Intl.DateTimeFormat(loc(), { month: 'long', year: 'numeric' }); } catch (e) { lf = new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }); }
-    const move = e => {
-      const r = svg.getBoundingClientRect();
-      const x = ((e.clientX - r.left) / r.width) * TG.W;
-      const i = Math.max(0, Math.min(n - 1, Math.round(((x - TG.pl) / (TG.W - TG.pl - TG.pr)) * (n - 1))));
-      cross.setAttribute('x1', tx(i, n)); cross.setAttribute('x2', tx(i, n)); cross.setAttribute('visibility', 'visible');
-      tip.innerHTML = `${esc(lf.format(monthDate(i)))}<br><b>${num(v[i])}</b>`;
-      tip.hidden = false;
-      const tw = tip.offsetWidth;
-      tip.style.left = Math.min(window.innerWidth - tw - 8, Math.max(8, e.clientX + 14)) + 'px';
-      tip.style.top = (e.clientY - 56) + 'px';
-    };
-    hit.addEventListener('pointermove', move);
-    hit.addEventListener('pointerleave', () => { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); });
+  function bindCharts() {
+    $$('.line-chart').forEach(svg => {
+      const c = CHARTS[svg.id]; if (!c) return;
+      const hit = $('.hit', svg), cross = $('.cross', svg), n = c.points.length;
+      if (!tip) { tip = document.createElement('div'); tip.className = 'tip'; tip.hidden = true; document.body.appendChild(tip); }
+      hit.addEventListener('pointermove', e => {
+        const r = svg.getBoundingClientRect();
+        const x = ((e.clientX - r.left) / r.width) * G.W;
+        const i = Math.max(0, Math.min(n - 1, Math.round(((x - G.pl) / (G.W - G.pl - G.pr)) * (n - 1))));
+        cross.setAttribute('x1', gx(i, n)); cross.setAttribute('x2', gx(i, n)); cross.setAttribute('visibility', 'visible');
+        tip.innerHTML = `${esc(c.points[i][0])}<br><b>${esc(c.fmt(c.points[i][1]))}</b>`;
+        tip.hidden = false;
+        tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - 8, Math.max(8, e.clientX + 14)) + 'px';
+        tip.style.top = (e.clientY - 56) + 'px';
+      });
+      hit.addEventListener('pointerleave', () => { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); });
+    });
   }
 
   function setLang(l) {

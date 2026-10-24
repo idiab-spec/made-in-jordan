@@ -4,14 +4,35 @@ window.MIJ = {
   usdPerJod: 1.41,
 
   national: {
-    exports: 8.9e9,          // JD, industrial exports 2025 (Jordan Chamber of Industry)
+    exports: 8.893e9,        // JD, industrial exports 2025 (Jordan Chamber of Industry, Mar 2026)
     exportsShare: 92,        // % of national exports (JCI)
     establishments: 18000,   // industrial establishments incl. craft workshops (JCI)
     workers: 261000,         // industrial workers 2025 (JCI)
-    estates: 10,             // JIEC industrial estates
-    estateCompanies: 937,    // companies operating in JIEC estates (JIEC, 2024)
-    estateInvestment: 3.235e9,
-    estateJobs: 60000
+    estates: 9,              // JIEC estates listed on jiec.com: 8 operating + Zarqa (new). Jerash became a tourism city in 2023.
+    estateCompanies: 997,    // companies in JIEC estates, mid-2026 (JIEC general manager, Al Rai, 28 Jul 2026)
+    estateInvestment: 3.0e9, // "over JD 3 bn" (same source)
+    estateJobs: 64867,       // jobs in JIEC estates, mid-2026 (same source)
+    newContracts2025: 201, newInvestment2025: 186.9e6, newJobs2025: 3346 // JIEC "Latest achievements 2025" page
+  },
+
+  // Real, sourced figures for Market insights. Money in JD million; USD sources converted at 0.709 JD per USD.
+  real: {
+    usdToJod: 0.709,
+    gdpShare: 24,             // industry's direct share of GDP, JCI (Mar–Jul 2026)
+    importCover: 43,          // share of imports covered by industrial exports, JCI (24 Mar 2026)
+    growth2025: 10.2,         // industrial exports growth 2025 vs revised 2024, JCI
+    // Industrial exports per year (JCI). 2024 as revised by JCI in March 2026; 2019–2023 as first published.
+    exportsYearly: [[2019, 4629], [2020, 4691], [2021, 5623], [2022, 7985], [2023, 7766], [2024, 8070], [2025, 8893]],
+    // National (domestic) exports by destination, 2024, USD million (UN Comtrade, flow DX). 'other' includes free zones.
+    exportsByDest: { year: 2024, usd: [['US', 3110.5], ['SA', 1584.9], ['IN', 1395.7], ['IQ', 1275.0], ['AE', 448.8], ['CN', 314.7], ['PS', 284.3], ['EG', 230.6], ['KW', 217.7], ['QA', 171.5], ['other', 3046.7]], total: 12080.4 },
+    // Industrial exports by JCI sector, January–November 2025, JD million (JCI report, Feb 2026). Adds up to 7,969.
+    exportsBySector: [['chem', 1786], ['eng', 1593], ['garments', 1589], ['mining', 1073], ['food', 835], ['pharma', 577], ['construction', 181], ['plastics', 172], ['packaging', 131], ['wood', 33]],
+    // Biggest imports by HS chapter, 2024, USD million, excluding fuels (27) and unspecified (99) (UN Comtrade).
+    imports: [['vehicles', '87', 2596.8], ['machinery', '84', 1896.0], ['precious', '71', 1493.9], ['electrical', '85', 1354.5], ['cereals', '10', 950.5], ['plastics', '39', 903.4], ['pharma', '30', 827.7], ['fabrics', '60', 736.3], ['steel', '72', 617.3], ['meat', '02', 515.7]],
+    // Local industry's share of its own home market by JCI sector, % (JCI self-sufficiency report, Apr 2026).
+    // Establishments and workers by JCI sector (JCI sector pages, Aug 2026; rounded, mixed years).
+    sectorBase: [['eng', 4800, 35200], ['food', 2600, 66500], ['construction', 2203, 15000], ['wood', 1750, 8000], ['garments', 1000, 96000], ['packaging', 812, 11000], ['chem', 740, 16800], ['plastics', 600, 11000], ['pharma', 151, 10000], ['mining', 78, 8000]],
+    localShare: [['eng', 6.8], ['garments', 46.4], ['plastics', 49.8], ['wood', 53.2], ['pharma', 59.6], ['food', 64.7], ['chem', 73.9], ['packaging', 77.2], ['construction', 82.2], ['mining', 99.8]]
   },
 
   sectors: [
@@ -29,20 +50,19 @@ window.MIJ = {
     { id: 'paper', hue: 40, listings: 520 }
   ],
 
-  // JIEC estates. lon/lat for the map; listed = sample listed factories at year-2 scale.
+  // JIEC estates with JIEC's end-2024 figures (Annual Report 2024, p.18): companies, investment (JD m), workers.
   estates: [
-    { id: 'irbid', lon: 35.93, lat: 32.50, listed: 168 },
-    { id: 'jerash', lon: 35.90, lat: 32.27, listed: 19 },
-    { id: 'zarqa', lon: 36.09, lat: 32.07, listed: 26 },
-    { id: 'salt', lon: 35.72, lat: 32.05, listed: 18 },
-    { id: 'sahab', lon: 35.995, lat: 31.872, listed: 210 },
-    { id: 'muwaqqar', lon: 36.10, lat: 31.80, listed: 74 },
-    { id: 'madaba', lon: 35.79, lat: 31.72, listed: 22 },
-    { id: 'karak', lon: 35.70, lat: 31.15, listed: 31 },
-    { id: 'tafila', lon: 35.60, lat: 30.84, listed: 12 },
-    { id: 'aqaba', lon: 35.02, lat: 29.47, listed: 46 }
+    { id: 'irbid', lon: 35.93, lat: 32.50, cos: 141, inv: 583, jobs: 34748 },
+    { id: 'zarqa', lon: 36.09, lat: 32.07, cos: null, isNew: true },
+    { id: 'salt', lon: 35.72, lat: 32.05, cos: 32, inv: 34, jobs: 1080 },
+    { id: 'sahab', lon: 35.995, lat: 31.872, cos: 413, inv: 1039, jobs: 14378 },
+    { id: 'muwaqqar', lon: 36.10, lat: 31.80, cos: 103, inv: 641, jobs: 4758 },
+    { id: 'madaba', lon: 35.79, lat: 31.72, cos: 40, inv: 50, jobs: 1319 },
+    { id: 'karak', lon: 35.70, lat: 31.15, cos: 50, inv: 48, jobs: 904 },
+    { id: 'tafila', lon: 35.60, lat: 30.84, cos: 23, inv: 19, jobs: 539 },
+    { id: 'aqaba', lon: 35.02, lat: 29.47, cos: 173, inv: 700, jobs: 6000 }
   ],
-  outsideEstates: 614,
+  estatesTotal: { cos: 975, inv: 3114, jobs: 63726 },
 
   // Natural Earth outline of Jordan (lon, lat)
   outline: [[35.546, 32.394], [35.720, 32.709], [36.834, 32.313], [38.792, 33.379], [39.195, 32.161], [39.005, 32.010], [37.002, 31.508], [37.999, 30.509], [37.668, 30.339], [37.504, 30.004], [36.741, 29.865], [36.501, 29.505], [36.069, 29.197], [34.956, 29.357], [34.923, 29.501], [35.421, 31.100], [35.398, 31.489], [35.545, 31.783]],
@@ -56,7 +76,7 @@ window.MIJ = {
     { id: 'f06', name: { en: 'Sahab Switchgear & Cables', ar: 'سحاب للوحات الكهربائية والكوابل' }, sector: 'electrical', estate: 'sahab', founded: 1996, employees: 450, area: 28000, lines: 7, use: 84, rating: 4.8, plan: 'export', open: null, certs: ['ISO 9001', 'IEC 61439', 'KEMA'], markets: ['SA', 'IQ', 'AE', 'PS', 'LB', 'EG', 'YE'] },
     { id: 'f07', name: { en: 'Zarqa Polymers', ar: 'الزرقاء للبوليمرات' }, sector: 'plastics', estate: 'zarqa', founded: 2015, employees: 190, area: 15000, lines: 6, use: 69, rating: 4.7, plan: 'growth', open: 'oem', certs: ['ISO 9001', 'FDA food contact', 'JS'], markets: ['IQ', 'SA', 'PS', 'LB'] },
     { id: 'f08', name: { en: 'Ramtha Apparel', ar: 'الرمثا للألبسة' }, sector: 'textiles', estate: 'irbid', founded: 2002, employees: 1100, area: 21000, lines: 14, use: 96, rating: 4.8, plan: 'export', open: 'partner', certs: ['WRAP', 'OEKO-TEX', 'ISO 9001'], markets: ['US', 'CA', 'DE', 'GB', 'NL'] },
-    { id: 'f09', name: { en: 'Ajloun Stone & Gypsum', ar: 'عجلون للحجر والجبس' }, sector: 'building', estate: 'jerash', founded: 1989, employees: 210, area: 40000, lines: 5, use: 66, rating: 4.8, plan: 'growth', open: null, certs: ['ISO 9001', 'EN 520', 'CE', 'JS'], markets: ['SA', 'AE', 'QA', 'KW', 'IQ', 'US'] },
+    { id: 'f09', name: { en: 'Ajloun Stone & Gypsum', ar: 'عجلون للحجر والجبس' }, sector: 'building', estate: 'muwaqqar', founded: 1989, employees: 210, area: 40000, lines: 5, use: 66, rating: 4.8, plan: 'growth', open: null, certs: ['ISO 9001', 'EN 520', 'CE', 'JS'], markets: ['SA', 'AE', 'QA', 'KW', 'IQ', 'US'] },
     { id: 'f10', name: { en: 'Madaba Contract Furniture', ar: 'مادبا للأثاث التعاقدي' }, sector: 'furniture', estate: 'madaba', founded: 2008, employees: 260, area: 19000, lines: 6, use: 70, rating: 4.8, plan: 'growth', open: 'oem', certs: ['ISO 9001', 'FSC', 'BS 7176'], markets: ['SA', 'AE', 'QA', 'IQ', 'KW'] },
     { id: 'f11', name: { en: 'Aqaba Paper & Pack', ar: 'العقبة للورق والتغليف' }, sector: 'paper', estate: 'aqaba', founded: 2012, employees: 160, area: 22000, lines: 4, use: 63, rating: 4.6, plan: 'growth', open: null, certs: ['ISO 9001', 'FSC', 'BRCGS'], markets: ['SA', 'EG', 'IQ', 'PS', 'DJ'] },
     { id: 'f12', name: { en: 'Tafila Silica & Minerals', ar: 'الطفيلة للسيليكا والمعادن' }, sector: 'mining', estate: 'tafila', founded: 2017, employees: 70, area: 120000, lines: 2, use: 54, rating: 4.6, plan: 'starter', open: 'expansion', certs: ['ISO 9001'], markets: ['SA', 'AE', 'TR', 'IN', 'IT'] },
@@ -105,13 +125,8 @@ window.MIJ = {
     { id: 'o6', type: 'expansion', sector: 'machinery', estate: 'karak', ticket: 2200000, jobs: 35, f: 'f05' }
   ],
 
-  // Market insights (sample, year-2 scale)
-  insights: {
-    factories: 1240, products: 18600, quotes: 3420, countries: 64,
-    trend: [610, 780, 940, 1120, 1390, 1600, 1880, 2150, 2420, 2760, 3050, 3420],
-    byCountry: [['SA', 720], ['IQ', 540], ['AE', 410], ['US', 330], ['PS', 260], ['EG', 190], ['KW', 170], ['DE', 120], ['GB', 110], ['QA', 100], ['other', 470]],
-    demand: [['glass', 4210, 1], ['inverter', 3180, 0], ['oliveoil', 2940, 38], ['syringes', 2450, 2], ['rebar', 2210, 9], ['pet', 1980, 14], ['lithium', 1640, 0], ['hotel', 1420, 21]]
-  },
+  // Platform projection at the end of year two (targets, not real data)
+  insights: { factories: 1240, products: 18600, quotes: 3420, countries: 64 },
 
   plans: [
     { id: 'starter', price: 250, subs: 720 },
