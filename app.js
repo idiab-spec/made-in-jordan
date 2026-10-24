@@ -619,6 +619,7 @@
 
   function viewInsights() {
     const R = D.real, N = D.national;
+    Object.assign(G, window.innerWidth < 640 ? { W: 520, pl: 78, pr: 96 } : { W: 960, pl: 70, pr: 92 });
     const kpis = [
       [counter(N.exports, 'moneyc'), 'ins.k.exports', t('ins.k.growth', { n: nf(R.growth2025, { maximumFractionDigits: 1 }) })],
       [counter(N.exportsShare, 'pct'), 'ins.k.share', ''],
